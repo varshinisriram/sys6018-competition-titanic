@@ -14,11 +14,6 @@ train_copy = traindata
 train_copy$Survived = NULL
 data = rbind(train_copy, testdata)
 
-#Converting the categorical variables to factors
-data$Pclass = as.factor(data$Pclass)
-data$Sex = as.factor(data$Sex)
-data$Embarked = as.factor(data$Embarked)
-
 #Filling in the missing values
 data[data==""] = NA
 #Age: Grouping by gender and passenger class and filling the median age for each group
@@ -50,7 +45,21 @@ end = str_locate(data$Name, pattern = '\\.')
 end = end[,1] - 1
 data$Title = str_sub(data$Name, start = start, end = end)
 
-#Converting into categorical variable
+#Creating a new column Family Size: Sibsp + Parch + 1 (the person)
+data$FamilySize <- data$SibSp + data$Parch + 1
+
+#Relative Family Size: discreting the family size into small and large
+data$SmallFam = NA
+data$SmallFam[data$FamilySize <= 4] = 1
+data$SmallFam[data$FamilySize > 4] = 0
+
+#Creating a new variable Child to indicate whether it is a child or not
+data$Child[data$Age <= 18] = 1
+data$Child[data$Age > 18] = 0
+
+#Converting the character variables to factors
+data$Sex = as.factor(data$Sex)
+data$Embarked = as.factor(data$Embarked)
 data$Title = as.factor(data$Title)
 
 #Splitting into training and testing data again
@@ -68,7 +77,7 @@ library(randomForest)
 set.seed(0)
 
 #Creating a random forest model
-rf = randomForest(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked + Title, data = train, importance = TRUE, ntree = 1000)
+rf = randomForest(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked + Title + Child + SmallFam, data = train, importance = TRUE, ntree = 1000)
 
 #Predicting using the test data
 prediction = predict(rf, test)
@@ -79,8 +88,22 @@ rf_solution <- data.frame(PassengerId = test$PassengerId, Survived = prediction)
 #Writing to a csv file
 write.csv(rf_solution, file = "rf_solution.csv", row.names = FALSE)
 
+#Converting the categorical variables to factors
+data$Pclass = as.factor(data$Pclass)
+data$SmallFam = as.factor(data$SmallFam)
+data$Child = as.factor(data$Child)
+
+#Splitting into training and testing data again
+train = data[1:891,]
+test = data[892:1309,]
+#Adding the survivor column and converting it to a categorical variable
+train$Survived = traindata$Survived
+train$Survived = as.factor(train$Survived)
+#Replacing the title in the row with the title Dona from the test data with NA since that is not present in the train data
+test$Title[test$Title=="Dona"] = NA
+
 #Creating a logistic regression model
-lg = glm(Survived ~ Pclass + Sex + Age + SibSp, data = train, family = "binomial")
+lg = glm(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked + Title + Child + SmallFam, data = train, family = "binomial")
 
 #Summary of the model
 summary(lg)
@@ -95,6 +118,6 @@ preds
 #Creating a dataframe for the solutions
 lg_solution <- data.frame(PassengerId = test$PassengerId, Survived = preds)
 
-
 #Writing to a csv file
 write.csv(lg_solution, file = "lg_solution.csv", row.names = FALSE)
+
